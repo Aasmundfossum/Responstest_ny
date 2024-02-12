@@ -622,6 +622,12 @@ class TRT_beregning:
                     innhold = document.paragraphs[linje_til_motstand].text
                     document.paragraphs[linje_til_motstand].clear()
                     document.paragraphs[linje_til_motstand].text = innhold.replace(eks_str,ny_str)
+            # Iterate over tables
+            for table in document.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        if eks_str in cell.text:
+                            cell.text = cell.text.replace(eks_str, ny_str)
                     
         sett_inn_i_rapport("[python_sted]", self.sted)
         sett_inn_i_rapport("[python_bronnborer]",self.oppdragsgiver)
