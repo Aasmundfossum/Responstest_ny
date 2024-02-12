@@ -10,6 +10,12 @@ from docx import Document
 from docx.shared import Cm
 from docx.enum.style import WD_STYLE_TYPE
 import io
+import json
+import folium
+from streamlit_folium import st_folium
+import plotly.graph_objects as go
+from html2image import Html2Image
+import os
 
 st.set_page_config(page_title="TRT-beregning", page_icon="🔥")
 
@@ -27,6 +33,8 @@ class TRT_beregning:
             self.les_av_datafil()
             self.finn_alle_tester()
             self.velg_test()
+            self.input_til_rapport()
+            self.kjor_knapp()
             if self.knapp2 == True:
                 with st.spinner(text="Grubler ... 🤔"):
                     self.behandle_test()
@@ -49,25 +57,62 @@ class TRT_beregning:
         # Viser alle input-felt i streamlit
         st.title('Resultatberegning fra termisk responstest (TRT) 🥵🥶')
         st.markdown('Laget av Åsmund Fossum 👨🏼‍💻')
-        st.header('Inndata') 
 
+        st.header('Last opp fil fra database for automatisk utfylling')
+        self.auto = st.file_uploader(label='Last opp JSON-fil fra database for automatisk utfylling (valgfritt)', type='json')
+        if self.auto:
+            self.inputfil = json.load(self.auto)
+        st.markdown('---')
+
+        st.header('Inndata til beregninger') 
+        kollvaeske_options = ['HX24','HX35','Kilfrost Geo 24 %','Kilfrost Geo 32 %','Kilfrost Geo 35 %']
+        vis_tetthet_input = False
+        if self.auto:
+            if self.inputfil['Kollektorvæske'] in kollvaeske_options:
+                kollvaeske_indeks = kollvaeske_options.index(self.inputfil['Kollektorvæske'])
+            else:
+                kollvaeske_options.append(self.inputfil['Kollektorvæske'])
+                kollvaeske_indeks = kollvaeske_options.index(self.inputfil['Kollektorvæske'])
+                vis_tetthet_input = True
+        else:
+            kollvaeske_indeks = 0
+        
         c1, c2 = st.columns(2)
         with c1:
-            self.kollvaeske = st.selectbox(label='Type kollektorvæske',options=['HXi24','HXi35','Kilfrost Geo 24 %','Kilfrost Geo 32 %','Kilfrost Geo 35 %'],index=3)
-        #with c2:
-        #    pass
+            self.kollvaeske = st.selectbox(label='Type kollektorvæske',options=kollvaeske_options,index=kollvaeske_indeks)
+        
+        if vis_tetthet_input == True:
+            st.write('NB: Fyll inn tettet og varmekapasitet for kollektorvæsken!')
+            c1, c2, c3, c4 = st.columns([0.1,1,1,0.1])
+            with c2:
+                self.tetthet = st.number_input('Tetthet til kollektorvæske (kg/m$^3$)')
+            with c3:
+                self.varmekap = st.number_input('Varmekapasitet til kollektorvæske (kJ/kg K)')
+            st.markdown('---')
+        
 
+        if self.auto:
+            dybde_verdi = self.inputfil['Kollektorlengde']
+            diam_verdi = self.inputfil['Brønndiameter']
+            strom_foer_verdi = self.inputfil['Strømmåler før']
+            strom_etter_verdi = self.inputfil['Strømmåler etter']
+        else:
+            dybde_verdi = 0
+            diam_verdi = 0
+            strom_foer_verdi = 0
+            strom_etter_verdi = 0
+        
         c1, c2 = st.columns(2)
         with c1:
-            self.dybde = st.number_input(label='Brønndybde (m)', value=250, step=1)
+            self.dybde = st.number_input(label='Brønndybde (m)', value=dybde_verdi, step=1)
         with c2:
-            self.diam = st.number_input(label='Diameter (mm)', value=115, step=1)
+            self.diam = st.number_input(label='Diameter (mm)', value=diam_verdi, step=1)
 
         c1, c2 = st.columns(2)
         with c1:
-            self.strom_foer = st.number_input(label='Strømmåler før test (kWh)', value=0, step=1)
+            self.strom_foer = st.number_input(label='Strømmåler før test (kWh)', value=strom_foer_verdi, step=1)
         with c2:
-            self.strom_etter = st.number_input(label='Strømmåler etter test (kWh)', value=800, step=1)
+            self.strom_etter = st.number_input(label='Strømmåler etter test (kWh)', value=strom_etter_verdi, step=1)
 
         self.datafil = st.file_uploader(label='Datafil fra testrigg (.dat)',type='dat')
 
@@ -167,7 +212,7 @@ class TRT_beregning:
 
 
     def velg_test(self):
-        vis_kjor_knapp = False
+        self.vis_kjor_knapp = False
         if len(self.liste_over_tester)<1:
             st.markdown('Feil: Finner ingen gyldige tester i denne filen.')
         else:
@@ -207,12 +252,12 @@ class TRT_beregning:
 
                 if kun_uforst_knapp == True:
                     self.type_test = 'Kun måling av uforstyrret temperatur'
-                    vis_kjor_knapp = True
+                    self.vis_kjor_knapp = True
                 else:
                     st.markdown('ELLER:')
                     valg_test_del2 = st.selectbox('Velg tilhørende hoveddel', options = liste_over_tester_st, index=0)
                     if 'Kun hoveddel' in valg_test_del2:
-                        vis_kjor_knapp = True
+                        self.vis_kjor_knapp = True
                         test_del2 = self.liste_over_tester[liste_over_tester_st.index(valg_test_del2)]
                         self.test_del2 = test_del2
                     else:
@@ -223,7 +268,7 @@ class TRT_beregning:
                 test_del2 = self.liste_over_tester[liste_over_tester_st.index(valg_av_test)]
                 self.test_del2 = test_del2
 
-                kun_hoved_knapp = st.checkbox('Vis resultater for kun hoveddel')
+                kun_hoved_knapp = st.checkbox('Bruk kun hoveddel')
                 
                 if kun_hoved_knapp == False:
                     st.markdown('ELLER:')
@@ -236,7 +281,7 @@ class TRT_beregning:
                     valg_test_del1 = st.selectbox('Velg tilhørende måling av uforstyrret temperatur',options = liste_over_tester_st_steg2, index=siste_indeks)
                     
                     if 'Kun måling av uforstyrret temperatur' in valg_test_del1:
-                        vis_kjor_knapp = True
+                        self.vis_kjor_knapp = True
                         
                         test_del1 = self.liste_over_tester[liste_over_tester_st.index(valg_test_del1)]
                         self.test_del1 = test_del1
@@ -248,7 +293,7 @@ class TRT_beregning:
                 elif kun_hoved_knapp == True:
                     self.konst_uforst_temp = st.number_input('Uforstyrret temperatur',value=7.5)
                     self.type_test = 'Kun hoveddel'
-                    vis_kjor_knapp = True
+                    self.vis_kjor_knapp = True
 
             elif 'Komplett' in valg_av_test:
                 denne_test = self.liste_over_tester[liste_over_tester_st.index(valg_av_test)]
@@ -256,22 +301,113 @@ class TRT_beregning:
                     if denne_test.iloc[i,0] == denne_test.iloc[i-1,0]:
                         deleindeks = int(i)
                         break
-                vis_kjor_knapp = True
+                self.vis_kjor_knapp = True
                 test_del1 = denne_test.iloc[0:deleindeks,:]
                 self.test_del1 = test_del1
                 test_del2 = denne_test.iloc[deleindeks:,:]
                 self.test_del2 = test_del2
 
-           
-        
-        if vis_kjor_knapp == True:
-            st.markdown('---')
-            c1,c2,c3,c4,c5 = st.columns(5)
-            with c3:
-                self.knapp2 = st.checkbox('Kjør! :steam_locomotive:')
+    def input_til_rapport(self):
+        st.header('Inndata til Rapport')
+        if self.auto:
+            sted_verdi = self.inputfil['Prosjektnavn']
+            oppdragsgiver_verdi = '' #oppdragsgiver_verdi = self.inputfil['Oppdragsgiver']
         else:
-            self.knapp2 = False
+            sted_verdi = ''
+            oppdragsgiver_verdi = ''
 
+
+        c1, c2 = st.columns(2)
+        with c1:
+            self.sted = st.text_input('Sted hvor responstesten er gjennomført', value=sted_verdi)
+        with c2:
+            self.oppdragsgiver = st.text_input('Oppdragsgiver', value=oppdragsgiver_verdi)
+        
+        st.markdown('---')
+        if self.auto:
+            st.write('Kart som viser plassering av brønnen slik det blir i rapporten')
+            self.kart = folium.Map(location=[self.inputfil['Latitude'], self.inputfil['Longitude']], zoom_start=16)
+            folium.CircleMarker([self.inputfil['Latitude'], self.inputfil['Longitude']], fill=True, color='red', fill_opacity=1, radius=5).add_to(self.kart)
+            st_folium(self.kart,height=450,width=800)
+        else:
+            st.write('Sett inn funksjon for å skrive inn koordinater og/eller klikke på kart')
+#            if 'lat' not in st.session_state:
+#                st.session_state.lat = 0.0
+#            if 'long' not in st.session_state:
+#                st.session_state.long = 0.0
+#                        
+#            st.write('Klikk på kartet for å velge plassering av brønnen:')
+#            m = folium.Map(location=[63, 10], zoom_start=16)
+#            if st.session_state.lat != None:
+#                folium.CircleMarker([st.session_state.lat, st.session_state.long], fill=True, color='red', fill_opacity=1, radius=5).add_to(m)
+#            coord_json = st_folium(m,height=500,width=725)
+#            
+#            if coord_json['last_clicked']:
+#                lat = coord_json['last_clicked']['lat']
+#                long = coord_json['last_clicked']['lng']
+#                st.session_state.lat = float(lat)
+#                st.session_state.long = float(long)
+        st.markdown('---')
+        st.write('Temperaturmålinger i brønn før og etter test (Figuren inkluderes i rapporten)')
+        
+        def json_list_to_python_list(str_fra_json):
+            liste = str_fra_json.strip('[]').split()
+            for i in range(len(liste)):
+                try:
+                    if liste[i].lower() == 'none':
+                        liste[i] = None
+                    else:
+                        liste[i] = float(liste[i])
+                except ValueError:
+                    pass  # Leave it as None if it cannot be converted
+            return liste
+
+        if self.auto:
+                posisjon_liste_foer = json_list_to_python_list(self.inputfil["Posisjoner temperaturmålinger før test"])
+                temp_liste_foer = json_list_to_python_list(self.inputfil["Temperaturmålinger før test"])
+                posisjon_liste_etter = json_list_to_python_list(self.inputfil["Posisjoner temperaturmålinger etter test"])
+                temp_liste_etter = json_list_to_python_list(self.inputfil["Temperaturmålinger etter test"])
+
+                dato_foer = dt.strptime(self.inputfil['Måledato temperaturprofil før test'], "%Y-%m-%d")
+                dato_etter = dt.strptime(self.inputfil['Måledato temperaturprofil etter test'], "%Y-%m-%d")
+
+                min_x = np.min([x for x in temp_liste_foer if x is not None])-0.5
+                max_x = np.max([x for x in temp_liste_etter if x is not None])+0.5
+                snittemp_foer = np.mean([x for x in temp_liste_foer if x is not None])
+                grunnvann_foer = self.inputfil['Grunnvannsnivå før test']
+
+                fig = px.line()
+        
+                fig.add_trace(go.Scatter(y=posisjon_liste_foer, x=temp_liste_foer, mode='lines+markers', name=f"Før test; {dato_foer.strftime('%d.%m.%Y')}", line=dict(color='#367A2F')))
+                fig.add_trace(go.Scatter(x=[snittemp_foer, snittemp_foer], y=[min(posisjon_liste_foer), max(posisjon_liste_foer)], mode='lines',
+                         name='Gjennomsnitt', line=dict(color='#367A2F', width=2, dash='dash')))
+                fig.add_trace(go.Scatter(y=posisjon_liste_etter, x=temp_liste_etter, mode='lines+markers', name=f"Etter test; {dato_etter.strftime('%d.%m.%Y')}",
+                         line=dict(color='#FFC358')))
+                fig.add_trace(go.Scatter(x=[min(temp_liste_foer)*0.1, max(temp_liste_foer)*10], y=[grunnvann_foer, grunnvann_foer], mode='lines',
+                         name='Grunnvansnivå før test', line=dict(color='blue', width=2, dash='dash')))
+                
+                fig.update_layout(legend=dict(orientation='h', yanchor='top', y=1.15, xanchor='right', x=1))
+                fig.update_xaxes(title_text='Temperatur [°C]', side='top')
+                fig.update_yaxes(title_text='Dybde [m]', autorange='reversed')
+                fig.update_xaxes(range=[min_x, max_x])
+                #fig.update_layout(showlegend=True)
+                
+                #fig.update_layout(height=750)  # Set the height in pixels
+                st.plotly_chart(fig, config={'staticPlot': True}, use_container_width=True)
+                self.fig0 = fig
+        else:
+            st.write('Sett inn funksjonen fra input-appen som lar deg skrive inn temperaturmålinger manuelt')
+        
+        st.markdown('---')
+
+    def kjor_knapp(self):
+        if self.vis_kjor_knapp == True and self.dybde > 0 and self.diam > 0 and self.strom_etter >0:
+            c1,c2,c3 = st.columns(3)
+            with c2:
+                self.knapp2 = st.checkbox('Kjør beregninger! :steam_locomotive:')
+        else:
+            st.write('Fyll inn all nødvendig informasjon for å aktivere kjør-knapp')
+            self.knapp2 = False
 
     def behandle_test(self):
         # Henter ut rader kun for de aktuelle tidspunkter basert på hvor "Pump enabeled"-kolonnen slår inn:
@@ -329,7 +465,7 @@ class TRT_beregning:
 
     def plot1(self):
         st.markdown('---')
-        st.header('Resultater')
+        st.header('Resultater fra beregninger')
 
         if self.type_test != 'Kun måling av uforstyrret temperatur':
             til_plot1 = pd.DataFrame({"Tider" : self.etter20timer['ln_t'], "Gj.snittstemp. kollektorvæske" : self.etter20timer['snittemp'], "Lineær tilnærming med r = "+self.r_verdi+"" : self.y_pred})
@@ -454,6 +590,16 @@ class TRT_beregning:
     def lagre_som_png(self):
         fig_bredde = 800
         fig_hoyde = 450
+
+        self.kart.save("TRT-figurer/fig_kart.html")
+        hti = Html2Image(custom_flags=['--virtual-time-budget=10000', '--hide-scrollbars'], output_path='TRT-figurer')
+
+        if os.path.exists("TRT-figurer/fig_kart.png"):
+            os.remove("TRT-figurer/fig_kart.png")  # Remove the existing file
+        
+        hti.screenshot(html_file="TRT-figurer/fig_kart.html", save_as="fig_kart.png", size=(fig_bredde,fig_hoyde))
+        self.fig0.write_image("TRT-figurer/fig0.png",width=fig_bredde, height=fig_hoyde)
+        
         if self.type_test != 'Kun måling av uforstyrret temperatur':
             self.fig1.write_image("TRT-figurer/fig1.png",width=fig_bredde, height=fig_hoyde)
             self.fig2.write_image("TRT-figurer/fig2.png",width=fig_bredde, height=fig_hoyde)
@@ -463,14 +609,7 @@ class TRT_beregning:
         elif self.type_test != 'Kun hoveddel':
             self.fig4.write_image("TRT-figurer/fig4.png",width=fig_bredde, height=fig_hoyde)
 
-
-    def lag_rapport(self):
-        c1, c2 = st.columns(2)
-        with c1:
-            sted = st.text_input('Sted hvor responstesten er gjennomført', "Hos meg")
-        with c2:
-            oppdragsgiver = st.text_input('Oppdragsgiver', 'Brønnborer')
-        
+    def lag_rapport(self):        
         document = Document("Mal Rapport TRT - Python.docx")
         styles = document.styles
         style = styles.add_style('Citation', WD_STYLE_TYPE.PARAGRAPH)
@@ -484,8 +623,8 @@ class TRT_beregning:
                     document.paragraphs[linje_til_motstand].clear()
                     document.paragraphs[linje_til_motstand].text = innhold.replace(eks_str,ny_str)
                     
-        sett_inn_i_rapport("[python_sted]", sted)
-        sett_inn_i_rapport("[python_bronnborer]",oppdragsgiver)
+        sett_inn_i_rapport("[python_sted]", self.sted)
+        sett_inn_i_rapport("[python_bronnborer]",self.oppdragsgiver)
         sett_inn_i_rapport("[python_dybde]",str(self.dybde))
         sett_inn_i_rapport("[python_ledn_evne]",str(round(self.ledn_evne_slider,2)))
         sett_inn_i_rapport("[python_motstand]",self.motstand_str)
@@ -494,6 +633,26 @@ class TRT_beregning:
 
         # Setter inn figurer på riktig sted i rapporten:
         if self.type_test != 'Kun måling av uforstyrret temperatur':
+            for paragraph_index, paragraph in enumerate(document.paragraphs):
+                if "[python_kart]" in paragraph.text:
+                    linje_til_kart = paragraph_index
+                    break  
+            document.paragraphs[linje_til_kart].clear()
+            run_kart = document.paragraphs[linje_til_kart].add_run()
+            kart = run_kart.add_picture("TRT-figurer/fig_kart.png")
+            kart.width = Cm(16)
+            kart.height = Cm(9)
+
+            for paragraph_index, paragraph in enumerate(document.paragraphs):
+                if "[python_fig0]" in paragraph.text:
+                    linje_til_fig0 = paragraph_index
+                    break  
+            document.paragraphs[linje_til_fig0].clear()
+            run0 = document.paragraphs[linje_til_fig0].add_run()
+            bilde0 = run0.add_picture("TRT-figurer/fig0.png")
+            bilde0.width = Cm(16)
+            bilde0.height = Cm(9)
+            
             for paragraph_index, paragraph in enumerate(document.paragraphs):
                 if "[python_fig2]" in paragraph.text:
                     linje_til_fig2 = paragraph_index
@@ -542,7 +701,7 @@ class TRT_beregning:
             st.download_button(
                 label="Last ned rapport 📝",
                 data=bio.getvalue(),
-                file_name=f"Termisk responstest - {sted}.docx",
+                file_name=f"Termisk responstest - {self.sted}.docx",
                 mime="docx")
 
 TRT_beregning().kjor_hele()
