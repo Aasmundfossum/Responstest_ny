@@ -119,10 +119,10 @@ class TRT_beregning:
         st.markdown('---')
 
     def varmeegenskaper(self):
-        if self.kollvaeske == 'HXi24':
+        if self.kollvaeske == 'HX24':
             self.tetthet = 970.5
             self.varmekap = 4.298
-        elif self.kollvaeske == 'HXi35':
+        elif self.kollvaeske == 'HX35':
             self.tetthet = 955
             self.varmekap = 4.061
         elif self.kollvaeske == 'Kilfrost Geo 24 %':
@@ -200,7 +200,8 @@ class TRT_beregning:
                     sluttdiff = (liste_over_alle_tester[i].iloc[-8,0]-liste_over_alle_tester[i].iloc[-9,0]).total_seconds()
                     varighet = (liste_over_alle_tester[i].iloc[-1,0]-liste_over_alle_tester[i].iloc[0,0]).total_seconds()
             
-                    if (startdiff == 5.0 and sluttdiff == 5.0 and varighet >= 180) or (startdiff == 30.0 and varighet >= 72000) or (startdiff == 5.0 and sluttdiff == 30.0 and varighet > 72000): #Hvis uforst_temp måling varer lengre enn 3 minutter eller hoveddel varer lengre enn 20 timer   
+                    #if (startdiff == 5.0 and sluttdiff == 5.0 and varighet >= 180) or (startdiff == 30.0 and varighet >= 72000) or (startdiff == 5.0 and sluttdiff == 30.0 and varighet > 72000): #Hvis uforst_temp måling varer lengre enn 3 minutter eller hoveddel varer lengre enn 20 timer   
+                    if (startdiff == 0.25 and sluttdiff == 0.25 and varighet >= 180) or (startdiff == 30.0 and varighet >= 72000) or (startdiff == 0.25 and sluttdiff == 30.0 and varighet > 72000): #Hvis uforst_temp måling varer lengre enn 3 minutter eller hoveddel varer lengre enn 20 timer   
                         liste_over_tester.append(liste_over_alle_tester[i])
                         varighet_timer.append(varighet//3600)
                         varighet_minutt.append((varighet-(varighet//3600)*3600)/60)
@@ -208,7 +209,6 @@ class TRT_beregning:
             return liste_over_tester,varighet_timer,varighet_minutt
         
         self.liste_over_tester,self.varighet_timer,self.varighet_minutt = funk_finn_alle_tester(self.df)
-
 
 
     def velg_test(self):
@@ -223,7 +223,8 @@ class TRT_beregning:
             for i in range(0,len(self.liste_over_tester)):
                 startdiff = (self.liste_over_tester[i].iloc[9,0]-self.liste_over_tester[i].iloc[8,0]).total_seconds()
                 sluttdiff = (self.liste_over_tester[i].iloc[-8,0]-self.liste_over_tester[i].iloc[-9,0]).total_seconds()
-                if startdiff != 5.0:
+                #if startdiff != 5.0:
+                if startdiff != 0.25:
                     self.type_test = 'Kun hoveddel'
                     tekst_kun_hoved = f'Hoveddel:  ({self.liste_over_tester[i].iloc[0,0].strftime("%d.%m.%Y")}  -  {self.liste_over_tester[i].iloc[-1,0].strftime("%d.%m.%Y")})'
                     liste_over_tester_st_kun_hoved.append(tekst_kun_hoved)
@@ -235,6 +236,7 @@ class TRT_beregning:
                     self.type_test = 'Komplett'
                 
                 tekst = f'Test nr. {i+1}:  ({self.liste_over_tester[i].iloc[0,0].strftime("%d.%m.%Y")}  -  {self.liste_over_tester[i].iloc[-1,0].strftime("%d.%m.%Y")}), ({round(self.varighet_timer[i])} h, {round(self.varighet_minutt[i])} min.) - {self.type_test}'
+                #tekst = f'Test nr. {i+1} - {self.type_test}'
                 liste_over_tester_st.append(tekst)
 
         
@@ -247,6 +249,8 @@ class TRT_beregning:
             if 'Kun måling av uforstyrret temperatur' in valg_av_test:
                 test_del1 = self.liste_over_tester[liste_over_tester_st.index(valg_av_test)]
                 self.test_del1 = test_del1
+                st.write(self.test_del1)
+
                 
                 kun_uforst_knapp = st.checkbox('Vis resultater for kun måling av uforstyrret temperatur')
 
@@ -260,6 +264,7 @@ class TRT_beregning:
                         self.vis_kjor_knapp = True
                         test_del2 = self.liste_over_tester[liste_over_tester_st.index(valg_test_del2)]
                         self.test_del2 = test_del2
+                        self.type_test = 'Komplett'
                     else:
                         st.markdown('---')
                         st.markdown('MERK: Nederst må det velges en hoveddel. Velg eventuelt å vise resultater for kun måling av uforstyrret temperatur.')
@@ -267,6 +272,7 @@ class TRT_beregning:
             elif 'Kun hoveddel' in valg_av_test:
                 test_del2 = self.liste_over_tester[liste_over_tester_st.index(valg_av_test)]
                 self.test_del2 = test_del2
+                st.write(self.test_del2)
 
                 kun_hoved_knapp = st.checkbox('Bruk kun hoveddel')
                 
@@ -285,6 +291,7 @@ class TRT_beregning:
                         
                         test_del1 = self.liste_over_tester[liste_over_tester_st.index(valg_test_del1)]
                         self.test_del1 = test_del1
+                        self.type_test = 'Komplett'
                     else:
                         st.markdown('---')
                         st.markdown('MERK: Nederst må det velges en måling for uforstyrret temperatur. Velg eventuelt å vise resultater for kun hoveddel.')
@@ -325,11 +332,13 @@ class TRT_beregning:
         
         st.markdown('---')
         if self.auto:
+            self.har_kart = True
             st.write('Kart som viser plassering av brønnen slik det blir i rapporten')
             self.kart = folium.Map(location=[self.inputfil['Latitude'], self.inputfil['Longitude']], zoom_start=16)
             folium.CircleMarker([self.inputfil['Latitude'], self.inputfil['Longitude']], fill=True, color='red', fill_opacity=1, radius=5).add_to(self.kart)
             st_folium(self.kart,height=450,width=800)
         else:
+            self.har_kart = False # Fjern når funksjon er ferdig
             st.write('Sett inn funksjon for å skrive inn koordinater og/eller klikke på kart')
 #            if 'lat' not in st.session_state:
 #                st.session_state.lat = 0.0
@@ -363,38 +372,38 @@ class TRT_beregning:
             return liste
 
         if self.auto:
-                posisjon_liste_foer = json_list_to_python_list(self.inputfil["Posisjoner temperaturmålinger før test"])
-                temp_liste_foer = json_list_to_python_list(self.inputfil["Temperaturmålinger før test"])
-                posisjon_liste_etter = json_list_to_python_list(self.inputfil["Posisjoner temperaturmålinger etter test"])
-                temp_liste_etter = json_list_to_python_list(self.inputfil["Temperaturmålinger etter test"])
+            posisjon_liste_foer = json_list_to_python_list(self.inputfil["Posisjoner temperaturmålinger før test"])
+            temp_liste_foer = json_list_to_python_list(self.inputfil["Temperaturmålinger før test"])
+            posisjon_liste_etter = json_list_to_python_list(self.inputfil["Posisjoner temperaturmålinger etter test"])
+            temp_liste_etter = json_list_to_python_list(self.inputfil["Temperaturmålinger etter test"])
 
-                dato_foer = dt.strptime(self.inputfil['Måledato temperaturprofil før test'], "%Y-%m-%d")
-                dato_etter = dt.strptime(self.inputfil['Måledato temperaturprofil etter test'], "%Y-%m-%d")
+            dato_foer = dt.strptime(self.inputfil['Måledato temperaturprofil før test'], "%Y-%m-%d")
+            dato_etter = dt.strptime(self.inputfil['Måledato temperaturprofil etter test'], "%Y-%m-%d")
 
-                min_x = np.min([x for x in temp_liste_foer if x is not None])-0.5
-                max_x = np.max([x for x in temp_liste_etter if x is not None])+0.5
-                snittemp_foer = np.mean([x for x in temp_liste_foer if x is not None])
-                grunnvann_foer = self.inputfil['Grunnvannsnivå før test']
+            min_x = np.min([x for x in temp_liste_foer if x is not None])-0.5
+            max_x = np.max([x for x in temp_liste_etter if x is not None])+0.5
+            snittemp_foer = np.mean([x for x in temp_liste_foer if x is not None])
+            grunnvann_foer = self.inputfil['Grunnvannsnivå før test']
 
-                fig = px.line()
-        
-                fig.add_trace(go.Scatter(y=posisjon_liste_foer, x=temp_liste_foer, mode='lines+markers', name=f"Før test; {dato_foer.strftime('%d.%m.%Y')}", line=dict(color='#367A2F')))
-                fig.add_trace(go.Scatter(x=[snittemp_foer, snittemp_foer], y=[min(posisjon_liste_foer), max(posisjon_liste_foer)], mode='lines',
-                         name='Gjennomsnitt', line=dict(color='#367A2F', width=2, dash='dash')))
-                fig.add_trace(go.Scatter(y=posisjon_liste_etter, x=temp_liste_etter, mode='lines+markers', name=f"Etter test; {dato_etter.strftime('%d.%m.%Y')}",
-                         line=dict(color='#FFC358')))
-                fig.add_trace(go.Scatter(x=[min(temp_liste_foer)*0.1, max(temp_liste_foer)*10], y=[grunnvann_foer, grunnvann_foer], mode='lines',
-                         name='Grunnvansnivå før test', line=dict(color='blue', width=2, dash='dash')))
-                
-                fig.update_layout(legend=dict(orientation='h', yanchor='top', y=1.15, xanchor='right', x=1))
-                fig.update_xaxes(title_text='Temperatur [°C]', side='top')
-                fig.update_yaxes(title_text='Dybde [m]', autorange='reversed')
-                fig.update_xaxes(range=[min_x, max_x])
-                #fig.update_layout(showlegend=True)
-                
-                #fig.update_layout(height=750)  # Set the height in pixels
-                st.plotly_chart(fig, config={'staticPlot': True}, use_container_width=True)
-                self.fig0 = fig
+            fig = px.line()
+    
+            fig.add_trace(go.Scatter(y=posisjon_liste_foer, x=temp_liste_foer, mode='lines+markers', name=f"Før test; {dato_foer.strftime('%d.%m.%Y')}", line=dict(color='#367A2F')))
+            fig.add_trace(go.Scatter(x=[snittemp_foer, snittemp_foer], y=[min(posisjon_liste_foer), max(posisjon_liste_foer)], mode='lines',
+                        name='Gjennomsnitt', line=dict(color='#367A2F', width=2, dash='dash')))
+            fig.add_trace(go.Scatter(y=posisjon_liste_etter, x=temp_liste_etter, mode='lines+markers', name=f"Etter test; {dato_etter.strftime('%d.%m.%Y')}",
+                        line=dict(color='#FFC358')))
+            fig.add_trace(go.Scatter(x=[min(temp_liste_foer)*0.1, max(temp_liste_foer)*10], y=[grunnvann_foer, grunnvann_foer], mode='lines',
+                        name='Grunnvansnivå før test', line=dict(color='blue', width=2, dash='dash')))
+            
+            fig.update_layout(legend=dict(orientation='h', yanchor='top', y=1.15, xanchor='right', x=1))
+            fig.update_xaxes(title_text='Temperatur [°C]', side='top')
+            fig.update_yaxes(title_text='Dybde [m]', autorange='reversed')
+            fig.update_xaxes(range=[min_x, max_x])
+            #fig.update_layout(showlegend=True)
+            
+            #fig.update_layout(height=750)  # Set the height in pixels
+            st.plotly_chart(fig, config={'staticPlot': True}, use_container_width=True)
+            self.fig0 = fig
         else:
             st.write('Sett inn funksjonen fra input-appen som lar deg skrive inn temperaturmålinger manuelt')
         
@@ -412,6 +421,7 @@ class TRT_beregning:
     def behandle_test(self):
         # Henter ut rader kun for de aktuelle tidspunkter basert på hvor "Pump enabeled"-kolonnen slår inn:
         if self.type_test != 'Kun hoveddel':
+            startrad = 0
             for i in range(0,len(self.test_del1)):
                 if self.test_del1['avpaa'].iloc[i] != 0:
                     startrad = int(i)
@@ -448,9 +458,9 @@ class TRT_beregning:
             self.test_del2['ln_t'] = self.test_del2['ln_t'].astype(float)
 
             # Henter ut den delen av test_del2 som foregår etter 5 og 20 timer:
-            etter5timer = self.test_del2.iloc[600:,:]                  #Antar her at det er et 30 sek mellom hvert målepunkt
+            etter5timer = self.test_del2.iloc[600:-10,:]                  #Antar her at det er et 30 sek mellom hvert målepunkt
             self.etter5timer = etter5timer.reset_index(drop=True)
-            etter20timer = self.test_del2.iloc[2400:,:]                  #Antar her at det er et 30 sek mellom hvert målepunkt
+            etter20timer = self.test_del2.iloc[2400:-10,:]                  #Antar her at det er et 30 sek mellom hvert målepunkt
             self.etter20timer = etter20timer.reset_index(drop=True)
             self.test_del2 = self.test_del2
 
@@ -458,10 +468,11 @@ class TRT_beregning:
     def linear_tiln(self):
         if self.type_test != 'Kun måling av uforstyrret temperatur':
             # Lineær tilnærming av gjennomsnittstemperaturen etter 20 timer:
-
             slope, intercept, r_value, p_value, std_err = linregress(self.etter20timer['ln_t'], self.etter20timer['snittemp'])
             self.y_pred = slope * self.etter20timer['ln_t'] + intercept
             self.r_verdi = str(round(r_value,3))
+            self.slope = slope
+            self.intercept = intercept
 
     def plot1(self):
         st.markdown('---')
@@ -474,6 +485,7 @@ class TRT_beregning:
             fig1.update_xaxes(range=[11.0, 12.6], row=1, col=1)
             st.plotly_chart(fig1)
             self.fig1 = fig1
+            st.write(f'Funksjonsuttrykk lineær tilnærming: {round(self.slope,4)}x + {round(self.intercept,4)}')
  
     def effektiv_varmeledningsevne(self):
         if self.type_test != 'Kun måling av uforstyrret temperatur':
@@ -591,23 +603,26 @@ class TRT_beregning:
         fig_bredde = 800
         fig_hoyde = 450
 
-        self.kart.save("TRT-figurer/fig_kart.html")
-        hti = Html2Image(custom_flags=['--virtual-time-budget=10000', '--hide-scrollbars'], output_path='TRT-figurer')
+        if self.har_kart == True:
+            self.kart.save("TRT-figurer/fig_kart.html")
+            hti = Html2Image(custom_flags=['--virtual-time-budget=10000', '--hide-scrollbars'], output_path='TRT-figurer')
 
-        if os.path.exists("TRT-figurer/fig_kart.png"):
-            os.remove("TRT-figurer/fig_kart.png")  # Remove the existing file
+            if os.path.exists("TRT-figurer/fig_kart.png"):
+                os.remove("TRT-figurer/fig_kart.png")  # Remove the existing file
+            
+            hti.screenshot(html_file="TRT-figurer/fig_kart.html", save_as="fig_kart.png", size=(fig_bredde,fig_hoyde))
         
-        hti.screenshot(html_file="TRT-figurer/fig_kart.html", save_as="fig_kart.png", size=(fig_bredde,fig_hoyde))
-        self.fig0.write_image("TRT-figurer/fig0.png",width=fig_bredde, height=fig_hoyde)
+        if self.auto:
+            self.fig0.write_image(f"TRT-figurer/fig0_{self.sted}.png",width=fig_bredde, height=fig_hoyde)
         
         if self.type_test != 'Kun måling av uforstyrret temperatur':
-            self.fig1.write_image("TRT-figurer/fig1.png",width=fig_bredde, height=fig_hoyde)
-            self.fig2.write_image("TRT-figurer/fig2.png",width=fig_bredde, height=fig_hoyde)
-            self.fig3.write_image("TRT-figurer/fig3.png",width=fig_bredde, height=fig_hoyde)
-            self.fig5.write_image("TRT-figurer/fig5.png",width=fig_bredde, height=fig_hoyde)
-            self.fig6.write_image("TRT-figurer/fig6.png",width=fig_bredde, height=fig_hoyde)
+            self.fig1.write_image(f"TRT-figurer/fig1_{self.sted}.png",width=fig_bredde, height=fig_hoyde)
+            self.fig2.write_image(f"TRT-figurer/fig2_{self.sted}.png",width=fig_bredde, height=fig_hoyde)
+            self.fig3.write_image(f"TRT-figurer/fig3_{self.sted}.png",width=fig_bredde, height=fig_hoyde)
+            self.fig5.write_image(f"TRT-figurer/fig5_{self.sted}.png",width=fig_bredde, height=fig_hoyde)
+            self.fig6.write_image(f"TRT-figurer/fig6_{self.sted}.png",width=fig_bredde, height=fig_hoyde)
         elif self.type_test != 'Kun hoveddel':
-            self.fig4.write_image("TRT-figurer/fig4.png",width=fig_bredde, height=fig_hoyde)
+            self.fig4.write_image(f"TRT-figurer/fig4_{self.sted}.png",width=fig_bredde, height=fig_hoyde)
 
     def lag_rapport(self):        
         document = Document("Mal Rapport TRT - Python.docx")
@@ -639,25 +654,29 @@ class TRT_beregning:
 
         # Setter inn figurer på riktig sted i rapporten:
         if self.type_test != 'Kun måling av uforstyrret temperatur':
-            for paragraph_index, paragraph in enumerate(document.paragraphs):
-                if "[python_kart]" in paragraph.text:
-                    linje_til_kart = paragraph_index
-                    break  
-            document.paragraphs[linje_til_kart].clear()
-            run_kart = document.paragraphs[linje_til_kart].add_run()
-            kart = run_kart.add_picture("TRT-figurer/fig_kart.png")
-            kart.width = Cm(16)
-            kart.height = Cm(9)
+            
+            if self.har_kart == True:
+                for paragraph_index, paragraph in enumerate(document.paragraphs):
+                    if "[python_kart]" in paragraph.text:
+                        linje_til_kart = paragraph_index
+                        break  
+                document.paragraphs[linje_til_kart].clear()
+                run_kart = document.paragraphs[linje_til_kart].add_run()
+                kart = run_kart.add_picture("TRT-figurer/fig_kart.png")
+                kart.width = Cm(16)
+                kart.height = Cm(9)
 
-            for paragraph_index, paragraph in enumerate(document.paragraphs):
-                if "[python_fig0]" in paragraph.text:
-                    linje_til_fig0 = paragraph_index
-                    break  
-            document.paragraphs[linje_til_fig0].clear()
-            run0 = document.paragraphs[linje_til_fig0].add_run()
-            bilde0 = run0.add_picture("TRT-figurer/fig0.png")
-            bilde0.width = Cm(16)
-            bilde0.height = Cm(9)
+            file_path = os.path.join('TRT-figurer', f'fig0_{self.sted}.png')
+            if os.path.exists(file_path):
+                for paragraph_index, paragraph in enumerate(document.paragraphs):
+                    if "[python_fig0]" in paragraph.text:
+                        linje_til_fig0 = paragraph_index
+                        break  
+                document.paragraphs[linje_til_fig0].clear()
+                run0 = document.paragraphs[linje_til_fig0].add_run()
+                bilde0 = run0.add_picture(f"TRT-figurer/fig0_{self.sted}.png")
+                bilde0.width = Cm(16)
+                bilde0.height = Cm(9)
             
             for paragraph_index, paragraph in enumerate(document.paragraphs):
                 if "[python_fig2]" in paragraph.text:
@@ -665,7 +684,7 @@ class TRT_beregning:
                     break  
             document.paragraphs[linje_til_fig2].clear()
             run2 = document.paragraphs[linje_til_fig2].add_run()
-            bilde2 = run2.add_picture("TRT-figurer/fig2.png")
+            bilde2 = run2.add_picture(f"TRT-figurer/fig2_{self.sted}.png")
             bilde2.width = Cm(16)
             bilde2.height = Cm(9)
 
@@ -675,7 +694,7 @@ class TRT_beregning:
                     break
             document.paragraphs[linje_til_fig3].clear()
             run3 = document.paragraphs[linje_til_fig3].add_run()
-            bilde3 = run3.add_picture("TRT-figurer/fig3.png")
+            bilde3 = run3.add_picture(f"TRT-figurer/fig3_{self.sted}.png")
             bilde3.width = Cm(16)
             bilde3.height = Cm(9)
 
@@ -685,7 +704,7 @@ class TRT_beregning:
                     break
             document.paragraphs[linje_til_fig5].clear()
             run5 = document.paragraphs[linje_til_fig5].add_run()
-            bilde5 = run5.add_picture("TRT-figurer/fig5.png")
+            bilde5 = run5.add_picture(f"TRT-figurer/fig5_{self.sted}.png")
             bilde5.width = Cm(16)
             bilde5.height = Cm(9)
 
@@ -695,7 +714,7 @@ class TRT_beregning:
                     break
             document.paragraphs[linje_til_fig6].clear()
             run6 = document.paragraphs[linje_til_fig6].add_run()
-            bilde6 = run6.add_picture("TRT-figurer/fig6.png")
+            bilde6 = run6.add_picture(f"TRT-figurer/fig6_{self.sted}.png")
             bilde6.width = Cm(16)
             bilde6.height = Cm(9)
 
@@ -707,7 +726,7 @@ class TRT_beregning:
             st.download_button(
                 label="Last ned rapport 📝",
                 data=bio.getvalue(),
-                file_name=f"Termisk responstest - {self.sted}.docx",
+                file_name=f"TRT - {self.sted}.docx",
                 mime="docx")
 
 TRT_beregning().kjor_hele()
